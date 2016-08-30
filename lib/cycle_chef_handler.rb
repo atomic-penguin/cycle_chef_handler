@@ -27,7 +27,7 @@ require 'fileutils'
 require 'uri'
 
 class CycleChefHandler < Chef::Handler
-  VERSION = '1.2.4'
+  VERSION = '1.3.0'
 
   def initialize(params)
     defaults = {:exchange    => 'chef',
@@ -96,18 +96,19 @@ class CycleChefHandler < Chef::Handler
 
         end
 
-        if not @amqp_config[:routing_key].nil?
-
-          e.publish(payload, :key => @amqp_config[:routing_key])
-
+        if run_status.run_context.reboot_requested?
+          Chef::Log.info('Delay converge history report, pending reboot.')
+          return
         else
-          
-          e.publish(payload)
-        
-        end
+          if not @amqp_config[:routing_key].nil?
+            e.publish(payload, :key => @amqp_config[:routing_key])
+          else
+            e.publish(payload)
+          end
 
-        Chef::Log.info("Posted converge history report")
-        return
+          Chef::Log.info("Posted converge history report")
+          return
+        end
 
       rescue Exception => e
         if attempt < @amqp_config[:max_retries]
